@@ -23,6 +23,7 @@ Script filenames are set in proper order:
 - [01-renttoday-schema.sql](./01-renttoday-schema.sql) will create new database from scratch
 - [02-renttoday-data.sql](./02-renttoday-data.sql) and [02-renttoday-insert-data.sql](./02-renttoday-insert-data.sql) will populated database with data. One file is used by [psql](https://www.postgresql.org/docs/current/app-psql.html)
 - [03-renttoday-populate-denormalized-data.sql](./03-renttoday-populate-denormalized-data.sql) will populate denormalized data in *payment* and *rental* tables  
+- [04-renttoday-create-service-user.sql](./04-renttoday-create-service-user.sql) will (re)create a service account that you can use to connect to *RentToday* database from your applications. It has limited permissions. **DON'T FORGET TO CHANGE THE PASSWORD**
 
 ## Old Pagila texts (still valid to some degree)
 
