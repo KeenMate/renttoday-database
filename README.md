@@ -22,7 +22,7 @@ Script filenames are set in proper order:
 - [00-renttoday-recreate-database.sql](./00-renttoday-recreate-database.sql) is used for complete removal and recreation of new empty database
 - [01-renttoday-schema.sql](./01-renttoday-schema.sql) will create new database from scratch
 - [02-renttoday-data.sql](./02-renttoday-data.sql) and [02-renttoday-insert-data.sql](./02-renttoday-insert-data.sql) will populated database with data. One file is used by [psql](https://www.postgresql.org/docs/current/app-psql.html)
-- [03-renttoday-populate-denormalized-data.sql] will populate denormalized data in *payment* and *rental* tables  
+- [03-renttoday-populate-denormalized-data.sql](./03-renttoday-populate-denormalized-data.sql) will populate denormalized data in *payment* and *rental* tables  
 
 ## Old Pagila texts (still valid to some degree)
 
