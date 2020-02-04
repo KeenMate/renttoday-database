@@ -294,6 +294,24 @@ create table public.inventory
 create index idx_store_id_film_id
     on public.inventory (store_id, film_id);
 
+create table inventory_counter
+(
+    inventory_counter_id serial             not null
+        constraint inventory_counter_pk
+            primary key,
+    store_id             integer            not null
+        constraint fk_store_id
+            references store
+            on update cascade on delete cascade,
+    film_id              integer            not null
+        constraint fk_film_id
+            references film
+            on update cascade on delete cascade,
+    counter              smallint default 0 not null,
+    constraint idx_uq_storeid_filmid
+        unique (store_id, film_id)
+);
+
 create table public.staff
 (
     staff_id    integer                  default nextval('staff_staff_id_seq'::regclass) not null
