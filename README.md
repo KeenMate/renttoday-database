@@ -1,6 +1,8 @@
 # RentToday - Postgres example database
 
-This is a rework of [Pagila database](https://github.com/ganeshan/pagila). It starts to be so different that it has no point to call it still Pagila. Main differences are these:
+This is a rework of [Pagila database](https://github.com/ganeshan/pagila). It starts to be so different there's no point still calling it Pagila. 
+
+## Main differences
   
 - there is a new schema called *helpers* for helper functions and objects:
   - aggregation function *group_concat* and it's *_group_concat* function help to group by concatenated string
