@@ -57,6 +57,13 @@ create aggregate helpers.group_concat(text) (
 
 set search_path to helpers, public;
 
+
+create or replace function format_inventory_number(_film_id int, _store_id int, _counter smallint) returns text
+language sql
+as $$
+    select lpad(_store_id::text, 2, '0') || '-' || lpad(_film_id::text, 2, '0') || '-' || lpad(_counter::text, 2, '0');
+    $$;
+
 create type public.mpaa_rating as enum ('G', 'PG', 'PG-13', 'R', 'NC-17');
 
 create domain public.year as integer
@@ -290,6 +297,38 @@ create table public.inventory
             references public.store
             on update cascade on delete restrict
 ) inherits (public._template_timestamps);
+
+create function update_inventory_counter() returns trigger
+language plpgsql
+as
+$$
+declare v_last_cassette_number smallint;
+BEGIN
+    --RAISE NOTICE 'New = (%)', NEW;
+
+    select counter from inventory_counter where film_id = new.film_id and store_id = new.store_id into v_last_cassette_number;
+
+	if (v_last_cassette_number is null) then
+	    insert into inventory_counter(film_id, store_id, counter)
+	    select new.film_id, new.store_id, count(inventory_id)
+        from inventory
+        where film_id = new.film_id and store_id = new.store_id
+        returning counter
+        into v_last_cassette_number;
+	else
+	    update inventory_counter set counter = v_last_cassette_number ++ 1 where film_id = new.film_id and store_id = new.store_id;
+    end if;
+
+    NEW.inventory_number = public.format_inventory_number(new.film_id, new.store_id, v_last_cassette_number + 1::smallint);
+    RETURN NEW;
+END
+$$;
+
+create trigger inventory_created
+    before insert
+    on inventory
+    for each row
+execute procedure update_inventory_counter();
 
 create index idx_store_id_film_id
     on public.inventory (store_id, film_id);
