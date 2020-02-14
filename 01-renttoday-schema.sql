@@ -38,6 +38,15 @@ SELECT CASE
            END
 $$;
 
+create function const.random_string(len integer DEFAULT 36) returns text
+    stable
+    cost 1
+    language sql
+as
+$$
+select upper(substring(md5(random()::text), 0, len + 1));
+$$;
+
 create function helpers.reversed_full_name(_first_name text, _last_name text) returns text
 language sql
 as $$
@@ -55,14 +64,29 @@ create aggregate helpers.group_concat(text) (
     stype = text
     );
 
-set search_path to helpers, public;
+create schema const;
+
+create table const.address_list(
+    address_code varchar(6) default helpers.random_string(6) primary key,
+    lat numeric(10,7) not null check (lat >= -90 and lat <=90),
+    lng numeric(10,7) not null check (lng >= -180 and lng <=180),
+    state varchar(2),
+    city text check (length(city)<=60),
+    street text check (length(street)<=120),
+    house_number text check (length(house_number)<=10),
+    post_code text check  (length(post_code)<=5),
+    constraint uq_address_code unique(address_code)
+);
+
+set search_path to public, const, helpers;
 
 
-create or replace function format_inventory_number(_film_id int, _store_id int, _counter smallint) returns text
-language sql
-as $$
-    select lpad(_store_id::text, 2, '0') || '-' || lpad(_film_id::text, 2, '0') || '-' || lpad(_counter::text, 2, '0');
-    $$;
+create function format_inventory_number(_film_id integer, _store_id integer, _counter smallint) returns text
+    language sql
+as
+$$
+select lpad(_store_id::text, 2, '0') || '-' || lpad(_film_id::text, 2, '0') || '-' || lpad(_counter::text, 2, '0');
+$$;
 
 create type public.mpaa_rating as enum ('G', 'PG', 'PG-13', 'R', 'NC-17');
 
@@ -306,17 +330,21 @@ declare v_last_cassette_number smallint;
 BEGIN
     --RAISE NOTICE 'New = (%)', NEW;
 
-    select counter from inventory_counter where film_id = new.film_id and store_id = new.store_id into v_last_cassette_number;
+    select counter from inventory_counter 
+    where film_id = new.film_id and store_id = new.store_id 
+    into v_last_cassette_number;
 
-	if (v_last_cassette_number is null) then
-	    insert into inventory_counter(film_id, store_id, counter)
-	    select new.film_id, new.store_id, count(inventory_id)
+    if (v_last_cassette_number is null) then
+        insert into inventory_counter(film_id, store_id, counter)
+        select new.film_id, new.store_id, count(inventory_id)
         from inventory
         where film_id = new.film_id and store_id = new.store_id
         returning counter
         into v_last_cassette_number;
 	else
-	    update inventory_counter set counter = v_last_cassette_number ++ 1 where film_id = new.film_id and store_id = new.store_id;
+	    update inventory_counter
+        set counter = v_last_cassette_number ++ 1
+        where film_id = new.film_id and store_id = new.store_id;
     end if;
 
     NEW.inventory_number = public.format_inventory_number(new.film_id, new.store_id, v_last_cassette_number + 1::smallint);
@@ -597,23 +625,26 @@ FROM (((actor a
          LEFT JOIN category c ON ((fc.category_id = c.category_id)))
 GROUP BY a.actor_id, a.first_name, a.last_name;
 
-create view public.customer_list(id, name, address, "zip code", phone, city, country, notes, sid) as
-SELECT cu.customer_id                                 AS id,
-       ((cu.first_name || ' '::text) || cu.last_name) AS name,
-       a.address,
-       a.postal_code                                  AS "zip code",
+create view customer_list(customer_id, name, state, city, street, house_number, post_code, phone, lat, lng, notes, sid) as
+SELECT cu.customer_id,
+       helpers.reversed_full_name(cu.first_name, cu.last_name)  AS name,
+       a.state,
+       a.city,
+       a.street,
+       a.house_number,
+       a.post_code,
        a.phone,
-       city.city,
-       country.country,
+       a.lat,
+       a.lng,
        CASE
            WHEN cu.activebool THEN 'active'::text
            ELSE ''::text
-           END                                        AS notes,
-       cu.store_id                                    AS sid
-FROM (((customer cu
-    JOIN address a ON ((cu.address_id = a.address_id)))
-    JOIN city ON ((a.city_id = city.city_id)))
-         JOIN country ON ((city.country_id = country.country_id)));
+           END                                      AS notes,
+       cu.store_id                                  AS sid
+FROM customer cu
+         JOIN address a ON cu.address_id = a.address_id
+         JOIN city ON a.city_id = city.city_id
+         JOIN country ON city.country_id = country.country_id;
 
 create view public.film_list(fid, title, description, category, price, length, rating, actors) as
 SELECT film.film_id                                                       AS fid,
@@ -675,19 +706,22 @@ FROM (((((((payment p
 GROUP BY cy.country, c.city, s.store_id, m.first_name, m.last_name
 ORDER BY cy.country, c.city;
 
-create view public.staff_list(id, name, address, "zip code", phone, city, country, sid) as
-SELECT s.staff_id                                   AS id,
-       ((s.first_name || ' '::text) || s.last_name) AS name,
-       a.address,
-       a.postal_code                                AS "zip code",
+create view staff_list(staff_id, name, state, city, street, house_number, post_code, phone, lat, lng, store_id, store_name) as
+SELECT s.staff_id,
+       helpers.reversed_full_name(s.first_name, s.last_name)  AS name,
+       a.state,
+       a.city,
+       a.street,
+       a.house_number,
+       a.post_code                                ,
        a.phone,
-       city.city,
-       country.country,
-       s.store_id                                   AS sid
-FROM (((staff s
-    JOIN address a ON ((s.address_id = a.address_id)))
-    JOIN city ON ((a.city_id = city.city_id)))
-         JOIN country ON ((city.country_id = country.country_id)));
+       a.lat,
+       a.lng,
+       s.store_id,
+       st.store_name
+FROM staff s
+inner join address a ON s.address_id = a.address_id
+inner join store st on s.store_id = st.store_id;
 
 create function public.film_in_stock(p_film_id integer, p_store_id integer, OUT p_film_count integer) returns SETOF integer
     language sql
